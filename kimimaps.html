@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>kimi Maps</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;font-family:'Segoe UI',Tahoma,sans-serif}
+body{background:#0a0e1a;color:#fff;height:100vh;overflow:hidden;user-select:none}
+
+.app{width:100vw;height:100vh;max-width:500px;margin:0 auto;background:#0a0e1a;position:relative;overflow:hidden}
+
+#map{width:100%;height:100%;z-index:1}
+
+/* ===== هدر گوگل مپس ===== */
+.header{position:absolute;top:0;left:0;right:0;z-index:1000;background:linear-gradient(180deg,rgba(255,255,255,0.98),rgba(255,255,255,0.95));padding:12px 15px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,0.1)}
+.header h1{font-size:20px;font-weight:500;color:#202124;display:flex;align-items:center;gap:6px}
+.header h1 .logo{font-size:24px}
+.header-btns{display:flex;gap:8px}
+.hdr-btn{background:#f1f3f4;border:none;color:#5f6368;width:38px;height:38px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;justify-content:center;align-items:center;transition:.2s}
+.hdr-btn:active{transform:scale(.9);background:#e8eaed}
+
+/* ===== کادر جستجو گوگل ===== */
+.search-panel{position:absolute;top:70px;left:15px;right:15px;z-index:1000;display:flex;flex-direction:column;gap:8px}
+.search-box{display:flex;gap:8px;background:#fff;border-radius:28px;padding:6px 6px 6px 18px;align-items:center;box-shadow:0 2px 12px rgba(0,0,0,0.15)}
+.search-box input{flex:1;background:transparent;border:none;color:#202124;font-size:14px;outline:none;font-family:inherit;min-width:0}
+.search-box input::placeholder{color:#5f6368}
+.search-box .mic{background:transparent;border:none;color:#ea4335;width:32px;height:32px;font-size:16px;cursor:pointer;flex-shrink:0}
+.search-box button.go{background:#1a73e8;border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:14px;cursor:pointer;display:flex;justify-content:center;align-items:center;flex-shrink:0}
+.search-box button.go:active{transform:scale(.9)}
+
+/* ===== نتایج جستجو ===== */
+.search-results{background:#fff;border-radius:15px;overflow:hidden;max-height:300px;overflow-y:auto;display:none;box-shadow:0 4px 15px rgba(0,0,0,0.15)}
+.search-results.show{display:block}
+.search-item{padding:14px 18px;border-bottom:1px solid #e8eaed;cursor:pointer;transition:.2s;display:flex;gap:12px;align-items:center}
+.search-item:active{background:#f1f3f4}
+.search-item .icon{width:36px;height:36px;border-radius:50%;background:#e8f0fe;display:flex;justify-content:center;align-items:center;font-size:16px;color:#1a73e8;flex-shrink:0}
+.search-item .info{flex:1;min-width:0}
+.search-item .name{font-size:14px;color:#202124;margin-bottom:3px;font-weight:500}
+.search-item .addr{font-size:11px;color:#5f6368;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ===== دکمه‌های شناور گوگل مپس ===== */
+.fab{position:absolute;z-index:1000;width:48px;height:48px;border-radius:50%;border:none;font-size:20px;cursor:pointer;display:flex;justify-content:center;align-items:center;box-shadow:0 2px 8px rgba(0,0,0,0.2);transition:.2s;background:#fff;color:#5f6368}
+.fab:active{transform:scale(.9)}
+.fab-locate{bottom:180px;left:15px}
+.fab-layers{bottom:120px;left:15px;font-size:22px}
+.fab-route{bottom:180px;right:15px;background:#1a73e8;color:#fff;font-size:22px}
+.fab-voice{bottom:120px;right:15px;background:#ea4335;color:#fff;font-size:22px}
+.fab-voice.listening{animation:pulseVoice 1.5s infinite}
+@keyframes pulseVoice{0%,100%{box-shadow:0 2px 8px rgba(234,67,53,0.4)}50%{box-shadow:0 2px 20px rgba(234,67,53,0.9),0 0 0 12px rgba(234,67,53,0.15)}}
+.fab-compass{bottom:60px;right:15px;font-size:22px;color:#1a73e8}
+
+/* ===== پنل مسیریابی ===== */
+.route-panel{position:absolute;bottom:0;left:0;right:0;z-index:1100;background:#fff;border-radius:20px 20px 0 0;padding:18px;box-shadow:0 -4px 20px rgba(0,0,0,0.15);display:none;color:#202124}
+.route-panel.show{display:block}
+.route-panel h3{font-size:14px;color:#202124;margin-bottom:12px;display:flex;align-items:center;gap:8px;font-weight:500}
+.route-panel h3 .dot{width:10px;height:10px;border-radius:50%;background:#1a73e8}
+.route-inputs{display:flex;flex-direction:column;gap:10px;margin-bottom:12px;position:relative}
+.route-inputs::before{content:'';position:absolute;right:11px;top:22px;bottom:22px;width:2px;background:#e8eaed;z-index:0}
+.route-inputs input{background:#f1f3f4;border:none;border-radius:10px;padding:12px 15px 12px 40px;color:#202124;font-size:13px;outline:none;font-family:inherit;position:relative;z-index:1}
+.route-inputs input:focus{background:#e8f0fe;box-shadow:0 0 0 2px #1a73e8}
+.route-inputs input::placeholder{color:#5f6368}
+.route-inputs .input-icon{position:absolute;right:12px;font-size:14px;color:#5f6368;z-index:2;pointer-events:none}
+.route-inputs .from .input-icon{top:14px}
+.route-inputs .to .input-icon{top:60px}
+.route-inputs .input-wrapper{position:relative}
+.route-actions{display:flex;gap:10px}
+.route-actions button{flex:1;background:#1a73e8;border:none;border-radius:25px;padding:13px;color:#fff;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;transition:.2s}
+.route-actions button:active{transform:scale(.97)}
+.route-actions button.clear{background:#f1f3f4;color:#5f6368}
+
+/* ===== پنل راهنما ===== */
+.directions-panel{position:absolute;top:70px;left:15px;right:15px;z-index:999;background:#fff;border-radius:15px;padding:12px;box-shadow:0 4px 15px rgba(0,0,0,0.15);max-height:220px;overflow-y:auto;display:none;color:#202124}
+.directions-panel.show{display:block}
+.directions-panel .dir-header{font-size:12px;color:#5f6368;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #e8eaed;display:flex;justify-content:space-between}
+.directions-panel .dir-header .close{color:#1a73e8;cursor:pointer;font-weight:500}
+.direction-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f1f3f4;font-size:12px;color:#202124}
+.direction-item:last-child{border:none}
+.direction-item.active{background:#e8f0fe;margin:0 -12px;padding:10px 12px;border-radius:8px}
+.direction-item .arrow{width:34px;height:34px;border-radius:50%;background:#e8f0fe;display:flex;justify-content:center;align-items:center;font-size:16px;flex-shrink:0;color:#1a73e8}
+.direction-item .text{flex:1}
+.direction-item .dist{color:#5f6368;font-size:11px;margin-top:3px}
+
+/* ===== سرعت سنج ===== */
+.speed-panel{position:absolute;bottom:60px;left:15px;z-index:1000;background:#fff;border-radius:50%;width:75px;height:75px;display:none;flex-direction:column;justify-content:center;align-items:center;box-shadow:0 4px 15px rgba(0,0,0,0.2);border:3px solid #1a73e8}
+.speed-panel.show{display:flex}
+.speed-panel .num{font-size:22px;font-weight:bold;color:#202124;line-height:1}
+.speed-panel .unit{font-size:9px;color:#5f6368;margin-top:2px}
+.speed-panel.speeding{border-color:#ea4335;animation:shake 0.5s infinite}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+
+/* ===== هشدار سرعت‌گیر ===== */
+.speed-camera-alert{position:absolute;top:130px;left:50%;transform:translateX(-50%);z-index:1500;background:linear-gradient(135deg,#ea4335,#c5221f);color:#fff;padding:12px 24px;border-radius:25px;font-size:13px;font-weight:bold;box-shadow:0 8px 25px rgba(234,67,53,0.5);display:none;animation:slideDown 0.5s}
+.speed-camera-alert.show{display:block}
+@keyframes slideDown{from{transform:translate(-50%,-50px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
+
+/* ===== پنل دستیار صوتی ===== */
+.voice-panel{position:absolute;bottom:0;left:0;right:0;z-index:1200;background:#fff;border-radius:20px 20px 0 0;padding:20px;box-shadow:0 -4px 20px rgba(0,0,0,0.15);display:none;color:#202124}
+.voice-panel.show{display:block}
+.voice-panel .close{position:absolute;top:15px;left:15px;background:#f1f3f4;border:none;color:#5f6368;width:32px;height:32px;border-radius:50%;font-size:14px;cursor:pointer}
+.voice-panel h3{font-size:15px;color:#202124;margin-bottom:8px;display:flex;align-items:center;gap:8px;font-weight:500}
+.voice-panel h3 .red-dot{width:10px;height:10px;border-radius:50%;background:#ea4335;animation:pulseRed 1s infinite}
+@keyframes pulseRed{0%,100%{opacity:1}50%{opacity:.3}}
+.voice-panel .hint{font-size:12px;color:#5f6368;margin-bottom:15px;line-height:1.6}
+.voice-panel .transcript{background:#f1f3f4;border-radius:12px;padding:15px;font-size:14px;color:#202124;min-height:60px;margin-bottom:15px;display:flex;align-items:center}
+.voice-panel .suggestions{display:flex;flex-wrap:wrap;gap:6px}
+.voice-panel .sug{background:#e8f0fe;color:#1a73e8;padding:8px 14px;border-radius:15px;font-size:11px;cursor:pointer;border:none;font-family:inherit}
+.voice-panel .sug:active{background:#1a73e8;color:#fff}
+
+/* ===== هشدار کمکی ===== */
+.nav-arrow{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:120px;height:120px;border-radius:50%;background:rgba(26,115,232,0.15);border:3px solid #1a73e8;display:none;justify-content:center;align-items:center;font-size:60px;color:#1a73e8;z-index:998;backdrop-filter:blur(5px);animation:pulseArrow 1.5s infinite;pointer-events:none}
+.nav-arrow.show{display:flex}
+@keyframes pulseArrow{0%,100%{box-shadow:0 0 20px rgba(26,115,232,0.5)}50%{box-shadow:0 0 40px rgba(26,115,232,0.9)}}
+
+/* ===== Toast ===== */
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-100px);background:#202124;color:#fff;padding:12px 22px;border-radius:25px;font-size:13px;font-weight:500;transition:.4s;z-index:2000;box-shadow:0 8px 25px rgba(0,0,0,0.3);max-width:90%;text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast.error{background:#ea4335}
+.toast.success{background:#34a853}
+
+/* ===== مخفی کردن Leaflet Routing ===== */
+.leaflet-routing-container{display:none!important}
+
+/* ===== تغییر ظاهر Leaflet ===== */
+.leaflet-control-attribution{display:none!important}
+.leaflet-tile{filter:hue-rotate(0deg) brightness(1.05) contrast(0.95)}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div id="map"></div>
+
+  <!-- هدر -->
+  <div class="header">
+    <h1><span class="logo">🗺️</span> kimi Maps</h1>
+    <div class="header-btns">
+      <button class="hdr-btn" onclick="clearRoute()" title="پاک">🗑️</button>
+    </div>
+  </div>
+
+  <!-- جستجو -->
+  <div class="search-panel">
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="جستجوی مکان در kimi Maps" onkeypress="if(event.key==='Enter')searchPlace()">
+      <button class="mic" onclick="startVoice()">🎤</button>
+      <button class="go" onclick="searchPlace()">🔍</button>
+    </div>
+    <div class="search-results" id="searchResults"></div>
+  </div>
+
+  <!-- راهنما -->
+  <div class="directions-panel" id="directionsPanel"></div>
+
+  <!-- فلش راهنما -->
+  <div class="nav-arrow" id="navArrow">⬆️</div>
+
+  <!-- هشدار سرعت‌گیر -->
+  <div class="speed-camera-alert" id="speedCameraAlert">📸 سرعت‌گیر در پیش رو!</div>
+
+  <!-- سرعت سنج -->
+  <div class="speed-panel" id="speedPanel">
+    <div class="num" id="speedNum">۰</div>
+    <div class="unit">km/h</div>
+  </div>
+
+  <!-- پنل مسیریابی -->
+  <div class="route-panel" id="routePanel">
+    <h3><span class="dot"></span> مسیریابی</h3>
+    <div class="route-inputs">
+      <div class="input-wrapper from">
+        <span class="input-icon">📍</span>
+        <input type="text" id="fromInput" placeholder="مبدا (موقعیت فعلی)" readonly>
+      </div>
+      <div class="input-wrapper to">
+        <span class="input-icon">🎯</span>
+        <input type="text" id="toInput" placeholder="مقصد رو بنویس...">
+      </div>
+    </div>
+    <div class="route-actions">
+      <button onclick="calculateRoute()">🚗 مسیریابی</button>
+      <button class="clear" onclick="clearRoute()">پاک</button>
+    </div>
+  </div>
+
+  <!-- پنل دستیار صوتی -->
+  <div class="voice-panel" id="voicePanel">
+    <button class="close" onclick="stopVoice()">✕</button>
+    <h3><span class="red-dot"></span> دستیار صوتی kimi</h3>
+    <p class="hint">میتونی بگی: «مسیریابی به تهران»، «کجا هستم؟»، «سرعت رو بگو»</p>
+    <div class="transcript" id="voiceTranscript">🎤 در حال گوش دادن...</div>
+    <div class="suggestions">
+      <button class="sug" onclick="quickVoice('کجا هستم؟')">کجا هستم؟</button>
+      <button class="sug" onclick="quickVoice('مسیریابی به تهران')">مسیریابی به تهران</button>
+      <button class="sug" onclick="quickVoice('سرعت من چنده')">سرعتم چنده؟</button>
+      <button class="sug" onclick="quickVoice('متوقف کن')">متوقف کن</button>
+    </div>
+  </div>
+
+  <!-- دکمه‌ها -->
+  <button class="fab fab-locate" onclick="locateMe()">📍</button>
+  <button class="fab fab-layers" onclick="toggleLayers()">🗺️</button>
+  <button class="fab fab-route" onclick="toggleRoutePanel()">🛣️</button>
+  <button class="fab fab-voice" id="voiceBtn" onclick="startVoice()">🎤</button>
+  <button class="fab fab-compass" onclick="resetBearing()">🧭</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+
+<script>
+// ===== متغیرها =====
+let map, userMarker, routingControl, watchId;
+let userLat = null, userLng = null;
+let voiceEnabled = true;
+let speedEnabled = false;
+let lastSpokenStep = '';
+let currentRoute = null;
+let recognition = null;
+let isListening = false;
+let currentTileLayer = null;
+let currentLayerIndex = 0;
+
+// لایه‌های نقشه
+const LAYERS = [
+  { name: 'روشن', url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png' },
+  { name: 'تیره', url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' },
+  { name: 'ماهواره', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}' }
+];
+
+// سرعت‌گیرها (نمونه)
+const SPEED_CAMERAS = [
+  { lat: 35.7000, lng: 51.4000, speed: 60 },
+  { lat: 35.7100, lng: 51.4200, speed: 80 },
+  { lat: 35.6900, lng: 51.3800, speed: 50 }
+];
+
+// ===== نقشه =====
+map = L.map('map', {
+  zoomControl: false,
+  attributionControl: false
+}).setView([35.6892, 51.3890], 13);
+
+setLayer(0);
+
+function setLayer(index){
+  if(currentTileLayer) map.removeLayer(currentTileLayer);
+  currentTileLayer = L.tileLayer(LAYERS[index].url, { maxZoom: 19 }).addTo(map);
+  currentLayerIndex = index;
+}
+
+function toggleLayers(){
+  const next = (currentLayerIndex + 1) % LAYERS.length;
+  setLayer(next);
+  showToast('🗺️ ' + LAYERS[next].name);
+}
+
+// ===== ابزار =====
+let toastTimer;
+function showToast(msg, type){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ===== موقعیت =====
+function locateMe(){
+  if(!navigator.geolocation){
+    showToast('موقعیت‌یابی پشتیبانی نمی‌شه', 'error');
+    return;
+  }
+  showToast('📍 در حال پیدا کردن موقعیت...', '');
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      userLat = pos.coords.latitude;
+      userLng = pos.coords.longitude;
+
+      if(userMarker) map.removeLayer(userMarker);
+
+      userMarker = L.marker([userLat, userLng], {
+        icon: L.divIcon({
+          className: '',
+          html: '<div style="width:20px;height:20px;background:#1a73e8;border:3px solid #fff;border-radius:50%;box-shadow:0 0 20px #1a73e8"></div>',
+          iconSize: [20, 20],
+          iconAnchor: [10, 10]
+        })
+      }).addTo(map);
+
+      map.setView([userLat, userLng], 15);
+      document.getElementById('fromInput').value = userLat.toFixed(4) + '، ' + userLng.toFixed(4);
+
+      showToast('✅ موقعیت پیدا شد', 'success');
+    },
+    () => showToast('❌ موقعیت پیدا نشد', 'error'),
+    { enableHighAccuracy: true, timeout: 15000 }
+  );
+}
+
+// ===== جستجو =====
+async function searchPlace(){
+  const q = document.getElementById('searchInput').value.trim();
+  if(!q){ showToast('چیزی بنویس!', 'error'); return; }
+
+  const resultsDiv = document.getElementById('searchResults');
+  resultsDiv.innerHTML = '<div style="padding:15px;text-align:center;color:#5f6368;font-size:12px">در حال جستجو...</div>';
+  resultsDiv.classList.add('show');
+
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&accept-language=fa&countrycodes=ir`;
+    const data = await fetch(url).then(r => r.json());
+
+    if(data.length === 0){
+      resultsDiv.innerHTML = '<div style="padding:15px;text-align:center;color:#5f6368;font-size:12px">نتیجه‌ای پیدا نشد</div>';
+      return;
+    }
+
+    resultsDiv.innerHTML = '';
+    data.forEach(place => {
+      const item = document.createElement('div');
+      item.className = 'search-item';
+      item.innerHTML = `
+        <div class="icon">📍</div>
+        <div class="info">
+          <div class="name">${escapeHtml(place.display_name.split(',')[0])}</div>
+          <div class="addr">${escapeHtml(place.display_name)}</div>
+        </div>
+      `;
+      item.onclick = () => {
+        const lat = parseFloat(place.lat);
+        const lng = parseFloat(place.lon);
+        map.setView([lat, lng], 15);
+        L.marker([lat, lng]).addTo(map).bindPopup(place.display_name.split(',')[0]).openPopup();
+        resultsDiv.classList.remove('show');
+        document.getElementById('searchInput').value = place.display_name.split(',')[0];
+      };
+      resultsDiv.appendChild(item);
+    });
+
+  } catch(e){
+    resultsDiv.innerHTML = '<div style="padding:15px;text-align:center;color:#ea4335;font-size:12px">خطا در جستجو</div>';
+  }
+}
+
+// ===== مسیریابی =====
+function toggleRoutePanel(){
+  document.getElementById('routePanel').classList.toggle('show');
+}
+
+async function calculateRoute(){
+  const to = document.getElementById('toInput').value.trim();
+  if(!to){ showToast('مقصد رو بنویس!', 'error'); return; }
+  if(!userLat || !userLng){ showToast('اول موقعیتت رو فعال کن! 📍', 'error'); return; }
+
+  showToast('⏳ در حال محاسبه مسیر...', '');
+
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(to)}&format=json&limit=1&accept-language=fa&countrycodes=ir`;
+    const data = await fetch(url).then(r => r.json());
+
+    if(data.length === 0){ showToast('❌ مقصد پیدا نشد', 'error'); return; }
+
+    const dest = data[0];
+    const destLat = parseFloat(dest.lat);
+    const destLng = parseFloat(dest.lon);
+
+    if(routingControl) map.removeControl(routingControl);
+
+    routingControl = L.Routing.control({
+      waypoints: [
+        L.latLng(userLat, userLng),
+        L.latLng(destLat, destLng)
+      ],
+      routeWhileDragging: false,
+      show: false,
+      addWaypoints: false,
+      lineOptions: {
+        styles: [{color: '#1a73e8', weight: 8, opacity: 0.9}]
+      },
+      createMarker: function(i, wp) {
+        const color = i === 0 ? '#34a853' : '#ea4335';
+        return L.marker(wp.latLng, {
+          icon: L.divIcon({
+            className: '',
+            html: `<div style="width:18px;height:18px;background:${color};border:3px solid #fff;border-radius:50%;box-shadow:0 0 12px ${color}"></div>`,
+            iconSize: [18, 18],
+            iconAnchor: [9, 9]
+          })
+        });
+      },
+      router: L.Routing.osrmv1({
+        serviceUrl: 'https://router.project-osrm.org/route/v1',
+        profile: 'driving'
+      })
+    }).addTo(map);
+
+    routingControl.on('routesfound', (e) => {
+      const route = e.routes[0];
+      currentRoute = route;
+      const km = (route.summary.totalDistance / 1000).toFixed(1);
+      const min = Math.round(route.summary.totalTime / 60);
+
+      showToast(`✅ ${km} کیلومتر • ${min} دقیقه`, 'success');
+
+      // گفتار صوتی
+      if(voiceEnabled){
+        speak(`مسیر پیدا شد. ${km} کیلومتر. حدود ${min} دقیقه`);
+      }
+
+      showDirections(route.instructions);
+      document.getElementById('routePanel').classList.remove('show');
+    });
+
+    routingControl.on('routingerror', () => {
+      showToast('❌ مسیر پیدا نشد', 'error');
+    });
+
+  } catch(e){
+    console.error(e);
+    showToast('❌ خطا در محاسبه مسیر', 'error');
+  }
+}
+
+function clearRoute(){
+  if(routingControl){
+    map.removeControl(routingControl);
+    routingControl = null;
+    currentRoute = null;
+  }
+  document.getElementById('directionsPanel').classList.remove('show');
+  document.getElementById('navArrow').classList.remove('show');
+  document.getElementById('toInput').value = '';
+  showToast('مسیر پاک شد', '');
+}
+
+// ===== نمایش راهنما =====
+function showDirections(instructions){
+  const panel = document.getElementById('directionsPanel');
+  panel.innerHTML = '<div class="dir-header"><span>📋 راهنمای مسیر</span><span class="close" onclick="document.getElementById(\'directionsPanel\').classList.remove(\'show\')">✕</span></div>';
+
+  if(!instructions || instructions.length === 0) return;
+
+  instructions.forEach((inst, idx) => {
+    if(idx === 0) return; // رد کردن اولین
+
+    const text = translateInstruction(inst.text);
+    const arrow = getArrow(inst.text);
+    const dist = inst.distance > 0 ? formatDist(inst.distance) : '';
+
+    const item = document.createElement('div');
+    item.className = 'direction-item';
+    item.innerHTML = `
+      <div class="arrow">${arrow}</div>
+      <div class="text">
+        <div>${text}</div>
+        ${dist ? `<div class="dist">${dist}</div>` : ''}
+      </div>
+    `;
+    item.onclick = () => {
+      if(voiceEnabled) speak(text);
+    };
+    panel.appendChild(item);
+  });
+
+  panel.classList.add('show');
+
+  // فلش راهنما
+  if(instructions.length > 1){
+    showNavArrow(getArrow(instructions[1].text));
+  }
+}
+
+// ===== ترجمه دستورات =====
+function translateInstruction(text){
+  if(!text) return '';
+  let t = text;
+
+  if(t.includes('Turn left')) t = '⬅️ به چپ بپیچ';
+  else if(t.includes('Turn right')) t = '➡️ به راست بپیچ';
+  else if(t.includes('Turn slight left')) t = '↖️ کمی به چپ';
+  else if(t.includes('Turn slight right')) t = '↗️ کمی به راست';
+  else if(t.includes('Turn sharp left')) t = '⬅️ تند به چپ';
+  else if(t.includes('Turn sharp right')) t = '➡️ تند به راست';
+  else if(t.includes('Continue straight')) t = '⬆️ مستقیم برو';
+  else if(t.includes('Head')) t = '⬆️ حرکت کن';
+  else if(t.includes('Arrive')) t = '🏁 به مقصد رسیدی';
+  else if(t.includes('Exit the roundabout')) t = '🔄 از میدان خارج شو';
+  else if(t.includes('Enter the roundabout')) t = '🔄 وارد میدان شو';
+  else if(t.includes('Take the ramp')) t = '↗️ از رمپ برو';
+  else if(t.includes('Merge')) t = '↗️ ادغام شو';
+  else if(t.includes('Keep left')) t = '⬅️ سمت چپ بمان';
+  else if(t.includes('Keep right')) t = '➡️ سمت راست بمان';
+
+  // حذف نام خیابون
+  t = t.replace(/onto|on|to/g, '').trim();
+
+  return t;
+}
+
+function getArrow(text){
+  if(!text) return '⬆️';
+  if(text.includes('left')) return '⬅️';
+  if(text.includes('right')) return '➡️';
+  if(text.includes('Arrive')) return '🏁';
+  if(text.includes('roundabout')) return '🔄';
+  return '⬆️';
+}
+
+function showNavArrow(arrow){
+  const el = document.getElementById('navArrow');
+  el.textContent = arrow;
+  el.classList.add('show');
+}
+
+function formatDist(m){
+  if(m < 1000) return Math.round(m) + ' متر';
+  return (m / 1000).toFixed(1) + ' کیلومتر';
+}
+
+// ===== گفتار صوتی =====
+function speak(text){
+  if(!voiceEnabled) return;
+  if(!('speechSynthesis' in window)) return;
+  if(text === lastSpokenStep) return;
+  lastSpokenStep = text;
+
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  const voices = window.speechSynthesis.getVoices();
+  const faVoice = voices.find(v => v.lang && v.lang.startsWith('fa'));
+  if(faVoice){
+    utter.voice = faVoice;
+    utter.lang = 'fa-IR';
+  } else {
+    utter.lang = 'en-US';
+  }
+  utter.rate = 1;
+  utter.pitch = 1;
+  window.speechSynthesis.speak(utter);
+}
+
+// ===== دستیار صوتی =====
+function startVoice(){
+  if(isListening){
+    stopVoice();
+    return;
+  }
+
+  if(!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)){
+    showToast('مرورگرت پشتیبانی نمی‌کنه', 'error');
+    return;
+  }
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRecognition();
+  recognition.lang = 'fa-IR';
+  recognition.continuous = false;
+  recognition.interimResults = true;
+
+  recognition.onstart = () => {
+    isListening = true;
+    document.getElementById('voiceBtn').classList.add('listening');
+    document.getElementById('voicePanel').classList.add('show');
+    document.getElementById('voiceTranscript').textContent = '🎤 در حال گوش دادن...';
+  };
+
+  recognition.onresult = (event) => {
+    let transcript = '';
+    for(let i = event.resultIndex; i < event.results.length; i++){
+      transcript += event.results[i][0].transcript;
+    }
+    document.getElementById('voiceTranscript').textContent = transcript;
+
+    if(event.results[event.results.length - 1].isFinal){
+      handleVoiceCommand(transcript);
+    }
+  };
+
+  recognition.onerror = () => {
+    showToast('❌ خطا در تشخیص صدا', 'error');
+    stopVoice();
+  };
+
+  recognition.onend = () => {
+    setTimeout(() => {
+      isListening = false;
+      document.getElementById('voiceBtn').classList.remove('listening');
+    }, 1500);
+  };
+
+  recognition.start();
+}
+
+function stopVoice(){
+  isListening = false;
+  document.getElementById('voiceBtn').classList.remove('listening');
+  document.getElementById('voicePanel').classList.remove('show');
+  if(recognition){
+    try { recognition.stop(); } catch(e) {}
+    recognition = null;
+  }
+}
+
+function quickVoice(text){
+  document.getElementById('voiceTranscript').textContent = text;
+  handleVoiceCommand(text);
+}
+
+function handleVoiceCommand(text){
+  const t = text.toLowerCase();
+
+  // کجا هستم
+  if(t.includes('کجا') || t.includes('موقعیت')){
+    if(userLat){
+      speak(`موقعیت شما ${userLat.toFixed(2)} درجه عرض و ${userLng.toFixed(2)} درجه طول جغرافیایی است`);
+    } else {
+      speak('موقعیت شما مشخص نیست. لطفا اول موقعیت‌یابی کنید');
+      locateMe();
+    }
+    return;
+  }
+
+  // سرعت
+  if(t.includes('سرعت')){
+    if(speedEnabled){
+      const speed = document.getElementById('speedNum').textContent;
+      speak(`سرعت شما ${speed} کیلومتر بر ساعت است`);
+    } else {
+      speak('سرعت سنج فعال نیست');
+      toggleSpeed();
+    }
+    return;
+  }
+
+  // متوقف کن
+  if(t.includes('متوقف') || t.includes('بس کن') || t.includes('قطع')){
+    clearRoute();
+    speak('مسیریابی متوقف شد');
+    return;
+  }
+
+  // مسیریابی
+  const routeMatch = text.match(/(?:مسیریابی|برو|نavigate|بریم)\s*(?:به|بسمت|طرف)?\s*(.+)/i);
+  if(routeMatch && routeMatch[1]){
+    const dest = routeMatch[1].trim();
+    document.getElementById('toInput').value = dest;
+    document.getElementById('routePanel').classList.add('show');
+    speak(`در حال مسیریابی به ${dest}`);
+    setTimeout(() => calculateRoute(), 1500);
+    return;
+  }
+
+  speak('متوجه نشدم. دوباره بگو');
+}
+
+// ===== سرعت سنج =====
+function toggleSpeed(){
+  speedEnabled = !speedEnabled;
+  document.getElementById('speedPanel').classList.toggle('show', speedEnabled);
+
+  if(speedEnabled){
+    if(!navigator.geolocation){ showToast('موقعیت‌یابی پشتیبانی نمی‌شه', 'error'); return; }
+    watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const speed = (pos.coords.speed || 0) * 3.6;
+        const kmh = Math.round(speed);
+        document.getElementById('speedNum').textContent = toFa(kmh);
+
+        // هشدار سرعت
+        if(kmh > 100){
+          document.getElementById('speedPanel').classList.add('speeding');
+        } else {
+          document.getElementById('speedPanel').classList.remove('speeding');
+        }
+
+        // چک سرعت‌گیر
+        checkSpeedCamera(pos.coords.latitude, pos.coords.longitude);
+      },
+      () => {},
+      { enableHighAccuracy: true }
+    );
+    showToast('🚗 سرعت سنج روشن', 'success');
+  } else {
+    if(watchId) navigator.geolocation.clearWatch(watchId);
+    showToast('سرعت سنج خاموش', '');
+  }
+}
+
+// ===== هشدار سرعت‌گیر =====
+function checkSpeedCamera(lat, lng){
+  for(const cam of SPEED_CAMERAS){
+    const dist = getDistance(lat, lng, cam.lat, cam.lng);
+    if(dist < 200 && dist > 50){
+      showSpeedCameraAlert(cam.speed);
+      return;
+    }
+  }
+}
+
+function showSpeedCameraAlert(speed){
+  const alert = document.getElementById('speedCameraAlert');
+  alert.textContent = `📸 سرعت‌گیر در پیش رو! حد مجاز: ${speed} km/h`;
+  alert.classList.add('show');
+
+  if(voiceEnabled){
+    speak(`هشدار! سرعت‌گیر در پیش رو. حد مجاز ${speed} کیلومتر بر ساعت`);
+  }
+
+  setTimeout(() => alert.classList.remove('show'), 5000);
+}
+
+function getDistance(lat1, lon1, lat2, lon2){
+  const R = 6371e3;
+  const φ1 = lat1 * Math.PI/180;
+  const φ2 = lat2 * Math.PI/180;
+  const Δφ = (lat2-lat1) * Math.PI/180;
+  const Δλ = (lon2-lon1) * Math.PI/180;
+
+  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ/2) * Math.sin(Δλ/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+  return R * c;
+}
+
+// ===== قطب‌نما =====
+function resetBearing(){
+  map.setBearing ? map.setBearing(0) : null;
+  if(userLat && userLng){
+    map.setView([userLat, userLng], 16);
+  }
+  showToast('🧭 نقشه به شمال تنظیم شد');
+}
+
+// ===== ابزار =====
+function toFa(n){
+  const fa = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'];
+  return String(n).split('').map(c => fa[c] || c).join('');
+}
+
+function escapeHtml(text){
+  const div = document.createElement('div');
+  div.textContent = text || '';
+  return div.innerHTML;
+}
+
+// ===== شروع =====
+setTimeout(() => {
+  if('speechSynthesis' in window){
+    window.speechSynthesis.getVoices();
+  }
+}, 500);
+</script>
+</body>
+</html>
